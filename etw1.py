@@ -68,6 +68,7 @@ def secret_al(*adlar: str, varsayilan: str = "") -> str:
 API_KEY = secret_al("GEMINI_API_KEY", "GOOGLE_API_KEY", "API_KEY")
 AKTIF_MODEL = secret_al("GEMINI_MODEL", varsayilan="gemini-3.1-flash-lite")
 ADMIN_TOKEN = secret_al("ADMIN_TOKEN")
+ADMIN_PASSWORD = secret_al("ADMIN_PASSWORD", varsayilan="")
 GUNCEL_WEB_ARAMA_AKTIF = secret_al("GUNCEL_WEB_ARAMA_AKTIF", varsayilan="1").lower() in {
     "1", "true", "evet", "yes", "on"
 }
@@ -1114,58 +1115,74 @@ if "toplam_token" not in st.session_state:
 
 
 # -----------------------------------------------------------------------------
-# Sidebar
+# Sidebar / Yönetici paneli
 # -----------------------------------------------------------------------------
+if "admin_acik" not in st.session_state:
+    st.session_state.admin_acik = False
+
 with st.sidebar:
     if MASKOT:
         st.image(str(MASKOT), use_container_width=True)
     st.markdown("## TwinBot")
     st.caption("eTwinning proje danışmanı")
 
-    st.markdown("### Sistem")
-    st.write(f"**Model:** `{AKTIF_MODEL}`")
-    st.write(f"**Güncel web doğrulaması:** {'Açık' if GUNCEL_WEB_ARAMA_AKTIF else 'Kapalı'}")
-    st.caption("Bilgi bankası önceliklidir; gerektiğinde model ve web doğrulaması kullanılır.")
-
-    if st.button("Sohbeti temizle", use_container_width=True):
-        st.session_state.messages = []
-        st.session_state.cevap_cache = {}
-        st.session_state.son_token = 0
-        st.rerun()
-
-    md = sohbeti_markdowna_cevir(st.session_state.messages)
-    st.download_button(
-        "Sohbeti indir",
-        data=md,
-        file_name="twin_sohbet.md",
-        mime="text/markdown",
-        use_container_width=True,
-    )
-
-    st.markdown("---")
-    st.markdown("### Hızlı Araçlar")
-    arac = st.selectbox(
-        "Araç",
-        ["Proje Tasarım Sihirbazı", "Kalite Etiketi Hızlı Kontrol", "TwinSpace Kontrol Listesi"],
-    )
-    if arac == "Proje Tasarım Sihirbazı":
-        tema = st.text_input("Tema", placeholder="Örn. dijital vatandaşlık")
-        yas = st.text_input("Yaş grubu", placeholder="Örn. 11-14")
-        sure = st.text_input("Süre", placeholder="Örn. 4 ay")
-        not_ = st.text_area("Not", height=80)
-        if st.button("Sihirbazı çalıştır", use_container_width=True):
-            prompt = arac_kutusu_promptu(arac, tema=tema, yas=yas, sure=sure, **{"not": not_})
-            st.session_state._arac_prompt = prompt
-            st.rerun()
+    if not st.session_state.admin_acik:
+        st.markdown("### Yönetici Paneli")
+        admin_girdi = st.text_input("Yönetici şifresi", type="password", placeholder="Şifre")
+        if st.button("Yönetici girişi", use_container_width=True):
+            if not ADMIN_PASSWORD:
+                st.error("ADMIN_PASSWORD tanımlı değil. Streamlit Secrets'a ekleyin.")
+            elif admin_girdi == ADMIN_PASSWORD:
+                st.session_state.admin_acik = True
+                st.rerun()
+            else:
+                st.error("Şifre hatalı.")
     else:
-        metin = st.text_area("Proje özeti / not", height=130)
-        if st.button("Analiz et", use_container_width=True):
-            st.session_state._arac_prompt = arac_kutusu_promptu(arac, metin=metin)
+        st.success("Yönetici paneli açık")
+        if st.button("Yönetici panelini kapat", use_container_width=True):
+            st.session_state.admin_acik = False
             st.rerun()
 
-    if ADMIN_TOKEN:
+        st.markdown("### Sistem")
+        st.write(f"**Model:** `{AKTIF_MODEL}`")
+        st.write(f"**Güncel web doğrulaması:** {'Açık' if GUNCEL_WEB_ARAMA_AKTIF else 'Kapalı'}")
+        st.caption("Bilgi bankası önceliklidir; gerektiğinde model ve web doğrulaması kullanılır.")
+
+        if st.button("Sohbeti temizle", use_container_width=True):
+            st.session_state.messages = []
+            st.session_state.cevap_cache = {}
+            st.session_state.son_token = 0
+            st.rerun()
+
+        md = sohbeti_markdowna_cevir(st.session_state.messages)
+        st.download_button(
+            "Sohbeti indir",
+            data=md,
+            file_name="twin_sohbet.md",
+            mime="text/markdown",
+            use_container_width=True,
+        )
+
         st.markdown("---")
-        st.caption("Yönetici güvenliği aktif.")
+        st.markdown("### Hızlı Araçlar")
+        arac = st.selectbox(
+            "Araç",
+            ["Proje Tasarım Sihirbazı", "Kalite Etiketi Hızlı Kontrol", "TwinSpace Kontrol Listesi"],
+        )
+        if arac == "Proje Tasarım Sihirbazı":
+            tema = st.text_input("Tema", placeholder="Örn. dijital vatandaşlık")
+            yas = st.text_input("Yaş grubu", placeholder="Örn. 11-14")
+            sure = st.text_input("Süre", placeholder="Örn. 4 ay")
+            not_ = st.text_area("Not", height=80)
+            if st.button("Sihirbazı çalıştır", use_container_width=True):
+                prompt = arac_kutusu_promptu(arac, tema=tema, yas=yas, sure=sure, **{"not": not_})
+                st.session_state._arac_prompt = prompt
+                st.rerun()
+        else:
+            metin = st.text_area("Proje özeti / not", height=130)
+            if st.button("Analiz et", use_container_width=True):
+                st.session_state._arac_prompt = arac_kutusu_promptu(arac, metin=metin)
+                st.rerun()
 
 
 # -----------------------------------------------------------------------------
