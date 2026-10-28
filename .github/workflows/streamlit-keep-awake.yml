@@ -1,0 +1,66 @@
+name: Keep eTwBot awake
+
+on:
+  schedule:
+    # Attempt to check/wake the Streamlit app every 6 hours.
+    - cron: "29 */6 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: etwbot-keep-awake
+  cancel-in-progress: false
+
+jobs:
+  wake-app:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install Playwright
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install playwright
+          python -m playwright install --with-deps chromium
+
+      - name: Visit app and click wake button if shown
+        run: |
+          python - <<'PY'
+          import asyncio
+          from playwright.async_api import async_playwright
+
+          URL = "https://etwbot.streamlit.app"
+
+          async def main():
+              async with async_playwright() as p:
+                  browser = await p.chromium.launch()
+                  page = await browser.new_page()
+                  try:
+                      response = await page.goto(URL, wait_until="domcontentloaded", timeout=90000)
+                      print(f"Initial HTTP status: {response.status if response else 'no response'}")
+                      await page.wait_for_timeout(5000)
+
+                      wake = page.get_by_role("button", name="Yes, get this app back up!", exact=False)
+                      if await wake.count():
+                          print("Sleeping screen found; clicking wake button.")
+                          await wake.first.click(timeout=15000)
+                          await page.wait_for_timeout(15000)
+                      else:
+                          print("Wake button not found; app may already be awake or the page changed.")
+                          await page.wait_for_timeout(10000)
+
+                      print(f"Final page title: {await page.title()}")
+                      print(f"Final URL: {page.url}")
+                      print("Page text preview:")
+                      print((await page.locator("body").inner_text())[:1500])
+                  finally:
+                      await browser.close()
+
+          asyncio.run(main())
+          PY
